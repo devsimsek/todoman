@@ -1,0 +1,6 @@
+.zed
+runner.py
+sarm.json
+test.db
+bin
+.gitignore
