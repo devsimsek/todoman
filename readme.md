@@ -1,6 +1,6 @@
 # TodoMan - A Todo App
 
-Another cli based todo app. This time with a twist.
+Another cli based todo app. This time, I'm building it with Go.
 
 ## Note
 
