@@ -49,6 +49,8 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     needs: [build-ubuntu, build-macos]
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,33 +71,17 @@ jobs:
         id: slug
         run: echo "sha8=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create Release
         env:
-          TOKEN: ${{ secrets.TOKEN }}
-        with:
-          tag_name: release-${{ steps.slug.outputs.sha8 }}
-          release_name: Release ${{ steps.slug.outputs.sha8 }}
-          draft: false
-          prerelease: false
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+        run: |
+          gh release create release-${{ steps.slug.outputs.sha8 }} \
+            --title "Release ${{ steps.slug.outputs.sha8 }}" \
+            --generate-notes \
+            ./artifacts/*
 
-      - name: Upload Linux Asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload Release Assets
         env:
-          TOKEN: ${{ secrets.TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/todoman-linux
-          asset_name: todoman-linux
-          asset_content_type: application/octet-stream
-
-      - name: Upload macOS Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/todoman-macos
-          asset_name: todoman-macos
-          asset_content_type: application/octet-stream
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+        run: |
+          gh release upload release-${{ steps.slug.outputs.sha8 }} ./artifacts/* --clobber
