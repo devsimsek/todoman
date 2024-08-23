@@ -1,0 +1,113 @@
+name: Build and Release
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22.6"
+
+      - name: Build
+        run: go build -v -o todoman-linux ./...
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: todoman-linux
+          path: todoman-linux
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22.6"
+
+      - name: Build
+        run: go build -v -o todoman-macos ./...
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: todoman-macos
+          path: todoman-macos
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-ubuntu, build-macos]
+    steps:
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: todoman-linux
+          path: ./artifacts
+
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: todoman-macos
+          path: ./artifacts
+
+      # Step to automatically generate the next tag
+      - name: Get the current tag
+        id: get_tag
+        run: |
+          # Fetch all tags
+          git fetch --tags
+          # Get the latest tag and increment it
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest tag: $LATEST_TAG"
+          if [ -z "$LATEST_TAG" ]; then
+            # If no tags exist, start with v1.0.0
+            NEW_TAG="v1.0.0"
+          else
+            # Extract the version numbers and increment
+            VERSION_PARTS=(${LATEST_TAG//./ })
+            MAJOR=${VERSION_PARTS[0]//v/}
+            MINOR=${VERSION_PARTS[1]}
+            PATCH=${VERSION_PARTS[2]}
+            NEW_TAG="v$MAJOR.$MINOR.$((PATCH+1))"
+          fi
+          echo "New tag: $NEW_TAG"
+          echo "tag_name=$NEW_TAG" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.tag_name }} # Use the generated tag
+          release_name: "Release ${{ env.tag_name }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Assets
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/todoman-linux
+          asset_name: todoman-linux
+          asset_content_type: application/octet-stream
+
+      - name: Upload macOS Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/todoman-macos
+          asset_name: todoman-macos
+          asset_content_type: application/octet-stream
